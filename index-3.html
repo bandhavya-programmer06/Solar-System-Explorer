@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solar System Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#eaf1ff;
+    --ink-dim:rgba(220,232,255,.68);
+    --glass:rgba(255,255,255,.07);
+    --glass-edge:rgba(255,255,255,.24);
+    --panel:rgba(6,11,28,.46);
+    --accent:#6fb4ff;
+    --accent-2:#8a6bff;
+    --danger:#ff8f9c;
+    --font:'Space Grotesk','Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#000;color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+  #stage{position:fixed;inset:0}
+  #stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+  #stage canvas:active{cursor:grabbing}
+  button{font-family:inherit;color:inherit}
+  .hidden{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+
+  /* ---------- Loader ---------- */
+  #loader{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#02040c;transition:opacity .9s ease,visibility .9s ease}
+  #loader .orbit{width:64px;height:64px;border-radius:50%;border:1px solid rgba(111,180,255,.25);position:relative;animation:spin 2.4s linear infinite}
+  #loader .orbit::after{content:"";position:absolute;top:-5px;left:50%;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent)}
+  #loaderText{font-size:15px;letter-spacing:.04em;color:var(--ink-dim);text-align:center;padding:0 24px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Login ---------- */
+  #login{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:none;transition:opacity .9s ease,visibility .9s ease,transform .9s ease}
+  #login.out{opacity:0;visibility:hidden;transform:scale(1.04)}
+  .card{
+    pointer-events:auto;width:min(100%,410px);padding:38px 34px 30px;border-radius:24px;
+    background:var(--glass);
+    border:1px solid var(--glass-edge);
+    -webkit-backdrop-filter:blur(12px) saturate(150%);backdrop-filter:blur(12px) saturate(150%);
+    box-shadow:0 24px 70px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 40px rgba(120,160,255,.05);
+    animation:rise 1.1s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+  .card.shake{animation:shake .45s}
+  @keyframes shake{20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+  .brand svg{flex:none;filter:drop-shadow(0 0 10px rgba(111,180,255,.55))}
+  .brand h1{font-size:25px;font-weight:600;letter-spacing:.01em;line-height:1.1;text-shadow:0 2px 14px rgba(0,0,0,.5)}
+  .brand p{font-size:13.5px;color:var(--ink-dim);margin-top:4px}
+  .field{display:block;margin-bottom:16px}
+  .field > span{display:block;font-size:13.5px;font-weight:500;margin-bottom:7px;color:rgba(235,242,255,.9);text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  .input-wrap{position:relative}
+  .field input{
+    width:100%;height:48px;padding:0 16px;border-radius:13px;font:inherit;font-size:16px;color:#fff;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.26);outline:none;
+    transition:border-color .2s,box-shadow .2s,background .2s;
+  }
+  .field input::placeholder{color:rgba(225,235,255,.45)}
+  .field input:focus{border-color:var(--accent);background:rgba(255,255,255,.12);box-shadow:0 0 0 3px rgba(111,180,255,.25)}
+  .field input:-webkit-autofill{-webkit-text-fill-color:#fff;-webkit-box-shadow:0 0 0 1000px rgba(22,32,70,.75) inset;caret-color:#fff}
+  #togglePass{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:32px;padding:0 11px;border-radius:9px;border:0;background:rgba(255,255,255,.1);font-size:12.5px;cursor:pointer;color:var(--ink-dim)}
+  #togglePass:hover{background:rgba(255,255,255,.18);color:#fff}
+  #togglePass:focus-visible,.btn:focus-visible,.chip:focus-visible,.ctl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #pass{padding-right:74px}
+  .error{min-height:20px;margin:-2px 0 10px;font-size:13.5px;color:var(--danger);text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  .btn{
+    width:100%;height:50px;border:0;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;color:#fff;
+    background:linear-gradient(120deg,#3f95ff,#7b5cff);
+    box-shadow:0 10px 30px rgba(79,120,255,.38);transition:transform .15s,box-shadow .2s,filter .2s;
+  }
+  .btn:hover{transform:translateY(-1px);filter:brightness(1.08);box-shadow:0 14px 36px rgba(79,120,255,.5)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:.7;cursor:wait}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;z-index:5;pointer-events:none;transition:opacity .9s ease .35s,visibility .9s ease .35s}
+  #hud > *{pointer-events:auto}
+  .glass{background:var(--panel);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 10px 36px rgba(0,0,0,.35)}
+  #topbar{position:absolute;left:14px;right:14px;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+  #topbar > *{pointer-events:auto}
+  .tag{display:flex;align-items:center;gap:10px;padding:9px 16px;border-radius:999px;font-size:15px;font-weight:600}
+  .tag i{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .user{display:flex;align-items:center;gap:6px;padding:5px 5px 5px 16px;border-radius:999px;font-size:14px;color:var(--ink-dim)}
+  .user button{height:34px;padding:0 15px;border-radius:999px;border:0;cursor:pointer;background:rgba(255,255,255,.12);font-size:14px;font-weight:500}
+  .user button:hover{background:rgba(255,255,255,.22)}
+  #info{position:absolute;left:14px;top:calc(env(safe-area-inset-top,0px) + 68px);width:min(255px,62vw);padding:16px 18px;border-radius:18px;transition:opacity .3s}
+  #info .kicker{font-size:12.5px;color:var(--accent);font-weight:500}
+  #info h2{font-size:24px;font-weight:600;margin:2px 0 10px}
+  #info dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px}
+  #info dt{color:var(--ink-dim)}
+  #info dd{text-align:right}
+  #side{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;border-radius:20px}
+  .ctl{width:44px;height:44px;border-radius:14px;border:0;cursor:pointer;background:rgba(255,255,255,.09);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s}
+  .ctl:hover{background:rgba(255,255,255,.2)}
+  .ctl.small{font-size:13px;font-weight:600}
+  .ctl[aria-pressed="false"]{opacity:.5}
+  #zoomRead{font-size:12px;color:var(--ink-dim);padding:2px 0 4px;min-width:44px;text-align:center}
+  #bottom{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);pointer-events:none}
+  #hint{text-align:center;font-size:13px;color:var(--ink-dim);margin-bottom:10px;text-shadow:0 1px 10px #000}
+  #chips{display:flex;gap:8px;overflow-x:auto;padding:4px 14px;pointer-events:auto;scrollbar-width:none}
+  #chips::-webkit-scrollbar{display:none}
+  #chips > :first-child{margin-left:auto}
+  #chips > :last-child{margin-right:auto}
+  .chip{flex:none;height:40px;padding:0 16px;border-radius:999px;font-size:14.5px;font-weight:500;cursor:pointer;background:var(--panel);border:1px solid rgba(255,255,255,.16);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transition:background .2s,border-color .2s,color .2s}
+  .chip:hover{background:rgba(255,255,255,.16)}
+  .chip.active{background:linear-gradient(120deg,rgba(63,149,255,.85),rgba(123,92,255,.85));border-color:transparent;color:#fff}
+  #labels{position:fixed;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+  .label{position:absolute;left:0;top:0;font-size:12.5px;font-weight:500;color:#d6e6ff;white-space:nowrap;text-shadow:0 0 6px #000,0 1px 10px #000;will-change:transform;opacity:.9}
+
+  @media (max-width:560px){
+    .card{padding:30px 24px 26px}
+    .tag{font-size:13.5px;padding:8px 13px}
+    .user{font-size:13px;padding-left:12px}
+    #info{padding:13px 15px}
+    #info h2{font-size:21px}
+    #side{right:8px}
+    #hint{font-size:12px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .card,.card.shake{animation:none}
+    #loader .orbit{animation-duration:6s}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="labels"></div>
+
+<div id="loader">
+  <div class="orbit"></div>
+  <div id="loaderText">Building the universe...</div>
+</div>
+
+<!-- ============ PAGE 1: LOGIN ============ -->
+<div id="login">
+  <form class="card" id="loginForm" autocomplete="off" novalidate>
+    <div class="brand">
+      <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">
+        <defs>
+          <radialGradient id="pg" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#3b5bdb"/></radialGradient>
+        </defs>
+        <ellipse cx="24" cy="25" rx="22" ry="7" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.6" transform="rotate(-18 24 25)"/>
+        <circle cx="24" cy="24" r="12" fill="url(#pg)"/>
+        <path d="M5 31c7 5 29 -1 38 -11" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.6" stroke-linecap="round" transform="rotate(0)" opacity=".0"/>
+        <ellipse cx="24" cy="25" rx="22" ry="7" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.6" stroke-dasharray="34 80" stroke-dashoffset="-46" transform="rotate(-18 24 25)"/>
+      </svg>
+      <div>
+        <h1>Solar System Explorer</h1>
+        <p>Sign in to enter the cosmos</p>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>Username</span>
+      <div class="input-wrap"><input id="user" name="username" type="text" placeholder="Enter username" autocapitalize="none" spellcheck="false" autocomplete="off" required></div>
+    </label>
+
+    <label class="field">
+      <span>Password</span>
+      <div class="input-wrap">
+        <input id="pass" name="password" type="password" placeholder="Enter password" autocomplete="off" required>
+        <button type="button" id="togglePass" aria-label="Show password">Show</button>
+      </div>
+    </label>
+
+    <div class="error" id="error" role="alert" aria-live="polite"></div>
+    <button class="btn" id="loginBtn" type="submit">Sign in</button>
+  </form>
+</div>
+
+<!-- ============ PAGE 2: 3D EXPLORER ============ -->
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="tag glass"><i></i>Solar System Explorer</div>
+    <div class="user glass"><span id="whoami">admin</span><button id="logout" type="button">Log out</button></div>
+  </div>
+
+  <div id="info" class="glass">
+    <div class="kicker" id="infoKicker">Planet</div>
+    <h2 id="infoName">Earth</h2>
+    <dl id="infoRows"></dl>
+  </div>
+
+  <div id="side" class="glass">
+    <button class="ctl" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+    <div id="zoomRead">100%</div>
+    <button class="ctl" id="zoomOut" type="button" aria-label="Zoom out">&minus;</button>
+    <button class="ctl small" id="speedBtn" type="button" aria-label="Change animation speed">1&times;</button>
+    <button class="ctl small" id="pauseBtn" type="button" aria-label="Pause or play animation">Pause</button>
+    <button class="ctl small" id="labelBtn" type="button" aria-pressed="true" aria-label="Toggle labels">Tags</button>
+  </div>
+
+  <div id="bottom">
+    <div id="hint">Drag to rotate. Scroll or pinch to zoom.</div>
+    <div id="chips" role="tablist" aria-label="Choose what to view"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var lerp = function (a, b, t) { return a + (b - a) * t; };
+  var smooth = function (a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  var wrapAngle = function (a) { return Math.atan2(Math.sin(a), Math.cos(a)); };
+
+  /* =====================================================
+     LOGIN  (username: admin / password: admin)
+     ===================================================== */
+  var app = { loggedIn: false, onLogin: function () {}, onLogout: function () {} };
+  var loginEl = $('login'), hudEl = $('hud'), card = $('loginForm');
+  var userIn = $('user'), passIn = $('pass'), errEl = $('error'), loginBtn = $('loginBtn');
+
+  $('togglePass').addEventListener('click', function () {
+    var show = passIn.type === 'password';
+    passIn.type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+    this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
+  card.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var u = userIn.value.trim(), p = passIn.value;
+    if (u === 'admin' && p === 'admin') {
+      errEl.textContent = '';
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
+      setTimeout(function () {
+        app.loggedIn = true;
+        loginEl.classList.add('out');
+        hudEl.classList.remove('hidden');
+        app.onLogin();
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign in';
+      }, 650);
+    } else {
+      errEl.textContent = 'Wrong username or password. Check both and try again.';
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+      passIn.value = '';
+      passIn.focus();
+    }
+  });
+
+  $('logout').addEventListener('click', function () {
+    app.loggedIn = false;
+    hudEl.classList.add('hidden');
+    loginEl.classList.remove('out');
+    userIn.value = ''; passIn.value = ''; errEl.textContent = '';
+    passIn.type = 'password'; $('togglePass').textContent = 'Show';
+    app.onLogout();
+  });
+
+  if (typeof THREE === 'undefined') {
+    $('loaderText').textContent = 'The 3D engine could not load. Connect to the internet and refresh this page.';
+    document.querySelector('#loader .orbit').style.display = 'none';
+    return;
+  }
+
+  /* =====================================================
+     PROCEDURAL NOISE + TEXTURES (no external images)
+     ===================================================== */
+  function hash3(x, y, z) {
+    var h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1274126177);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967295;
+  }
+  function noise3(x, y, z) {
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    var xf = x - xi, yf = y - yi, zf = z - zi;
+    xf = xf * xf * (3 - 2 * xf); yf = yf * yf * (3 - 2 * yf); zf = zf * zf * (3 - 2 * zf);
+    var a = hash3(xi, yi, zi), b = hash3(xi + 1, yi, zi), c = hash3(xi, yi + 1, zi), d = hash3(xi + 1, yi + 1, zi);
+    var e = hash3(xi, yi, zi + 1), f = hash3(xi + 1, yi, zi + 1), g = hash3(xi, yi + 1, zi + 1), h = hash3(xi + 1, yi + 1, zi + 1);
+    var x1 = a + (b - a) * xf, x2 = c + (d - c) * xf, x3 = e + (f - e) * xf, x4 = g + (h - g) * xf;
+    var y1 = x1 + (x2 - x1) * yf, y2 = x3 + (x4 - x3) * yf;
+    return y1 + (y2 - y1) * zf;
+  }
+  function fbm(x, y, z, oct) {
+    var s = 0, a = 0.5, f = 1, n = 0;
+    for (var i = 0; i < oct; i++) { s += a * noise3(x * f, y * f, z * f); n += a; a *= 0.5; f *= 2.03; }
+    return s / n;
+  }
+
+  // Builds an equirectangular canvas by sampling 3D noise on a sphere (seamless wrap).
+  function makeSphereCanvas(w, h, fn) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data, o = [0, 0, 0, 255];
+    for (var j = 0; j < h; j++) {
+      var lat = (0.5 - (j + 0.5) / h) * Math.PI, y = Math.sin(lat), cl = Math.cos(lat);
+      for (var i = 0; i < w; i++) {
+        var th = (i / w) * Math.PI * 2, x = cl * Math.cos(th), z = cl * Math.sin(th);
+        o[3] = 255;
+        fn(x, y, z, o);
+        var k = (j * w + i) * 4;
+        d[k] = o[0]; d[k + 1] = o[1]; d[k + 2] = o[2]; d[k + 3] = o[3];
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+  function tex(canvas) {
+    var t = new THREE.CanvasTexture(canvas);
+    t.anisotropy = 8;
+    return t;
+  }
+  function mixTo(o, r, g, b, t) { o[0] = lerp(o[0], r, t); o[1] = lerp(o[1], g, t); o[2] = lerp(o[2], b, t); }
+
+  /* ---------- Earth ---------- */
+  var EW = 1024, EH = 512;
+  var earthSpec = new Uint8Array(EW * EH), earthIdx = 0;
+  function earthFn(x, y, z, o) {
+    var e = fbm(x * 1.7 + 3.1, y * 1.7 + 1.3, z * 1.7 + 7.7, 6);
+    var lat = Math.abs(y), sea = 0.5, spec = 255;
+    if (e < sea) {
+      var t = Math.min(1, ((sea - e) / sea) * 2.4);
+      o[0] = lerp(46, 6, t); o[1] = lerp(128, 34, t); o[2] = lerp(182, 92, t);
+    } else {
+      spec = 0;
+      var hgt = (e - sea) / (1 - sea);
+      var m = fbm(x * 3 + 11, y * 3 + 5, z * 3 + 2, 4);
+      var g1 = smooth(0.4, 0.58, m);
+      o[0] = lerp(96, 38, g1); o[1] = lerp(132, 92, g1); o[2] = lerp(54, 42, g1);
+      var dry = smooth(0.46, 0.34, m) * (1 - smooth(0.5, 0.75, lat));
+      mixTo(o, 204, 172, 112, dry);
+      mixTo(o, 112, 98, 84, smooth(0.14, 0.26, hgt));
+      mixTo(o, 242, 244, 248, smooth(0.26, 0.38, hgt));
+    }
+    var ice = smooth(0.8, 0.9, lat + (fbm(x * 4, y * 4, z * 4, 3) - 0.5) * 0.14);
+    if (ice > 0) { mixTo(o, 246, 249, 255, ice); spec = lerp(spec, 40, ice); }
+    earthSpec[earthIdx++] = spec;
+  }
+  function cloudFn(x, y, z, o) {
+    var c = fbm(x * 2.6 + 20, y * 2.9 + 9, z * 2.6 + 4, 5);
+    var a = smooth(0.5, 0.74, c);
+    o[0] = 255; o[1] = 255; o[2] = 255; o[3] = a * 235;
+  }
+
+  /* ---------- Other bodies ---------- */
+  function sunFn(x, y, z, o) {
+    var n = fbm(x * 3, y * 3, z * 3, 5), t = fbm(x * 9 + 5, y * 9, z * 9, 4);
+    var heat = clamp(0.55 * n + 0.5 * t, 0, 1);
+    o[0] = 255; o[1] = lerp(70, 238, heat); o[2] = lerp(0, 96, heat * heat);
+  }
+  function rockFn(base, contrast, craters) {
+    return function (x, y, z, o) {
+      var n = fbm(x * 5 + 2, y * 5, z * 5, 5);
+      var v = base + (n - 0.5) * contrast;
+      var rg = 1 - Math.abs(fbm(x * 11 + 4, y * 11, z * 11, 3) * 2 - 1);
+      if (craters) v -= smooth(0.82, 0.96, rg) * 28;
+      o[0] = v; o[1] = v * 0.97; o[2] = v * 0.92;
+    };
+  }
+  function venusFn(x, y, z, o) {
+    var w = fbm(x * 1.6, y * 3.2, z * 1.6, 3);
+    var n = fbm(x * 2.2 + w * 1.6, y * 4 + w, z * 2.2 + w * 1.6, 5);
+    var k = 0.78 + 0.32 * n;
+    o[0] = 232 * k; o[1] = 192 * k; o[2] = 118 * k;
+  }
+  function marsFn(x, y, z, o) {
+    var n = fbm(x * 3 + 8, y * 3, z * 3, 5), m = fbm(x * 6, y * 6 + 3, z * 6, 4);
+    o[0] = lerp(150, 206, n); o[1] = lerp(70, 108, n); o[2] = lerp(40, 62, n);
+    mixTo(o, 88, 52, 40, smooth(0.52, 0.66, m) * 0.7);
+    mixTo(o, 246, 244, 240, smooth(0.9, 0.96, Math.abs(y) + (n - 0.5) * 0.1));
+  }
+  function jupiterFn(x, y, z, o) {
+    var w = fbm(x * 3, y * 5, z * 3, 4) - 0.5;
+    var b = Math.sin((y + w * 0.14) * 24) * 0.5 + 0.5;
+    var b2 = Math.sin((y + w * 0.2) * 52 + 1.3) * 0.5 + 0.5;
+    o[0] = lerp(176, 238, b); o[1] = lerp(118, 218, b); o[2] = lerp(78, 184, b);
+    mixTo(o, 198, 132, 92, b2 * 0.35);
+    var th = Math.atan2(z, x), dth = wrapAngle(th - 4.0), dy = y + 0.28;
+    var dd = Math.pow(dth * Math.sqrt(1 - y * y) / 0.24, 2) + Math.pow(dy / 0.085, 2);
+    if (dd < 1) mixTo(o, 190, 78, 48, (1 - dd) * 0.92);
+  }
+  function saturnFn(x, y, z, o) {
+    var w = fbm(x * 2, y * 4, z * 2, 3) - 0.5;
+    var b = Math.sin((y + w * 0.08) * 20) * 0.5 + 0.5;
+    o[0] = lerp(196, 238, b); o[1] = lerp(166, 214, b); o[2] = lerp(110, 154, b);
+  }
+  function iceFn(r, g, b2, bandAmt) {
+    return function (x, y, z, o) {
+      var w = fbm(x * 2, y * 4, z * 2, 3) - 0.5;
+      var b = Math.sin((y + w * 0.1) * 14) * 0.5 + 0.5;
+      var k = 1 + (b - 0.5) * bandAmt;
+      o[0] = r * k; o[1] = g * k; o[2] = b2 * k;
+    };
+  }
+  function moonFn(x, y, z, o) {
+    var n = fbm(x * 5, y * 5, z * 5, 5), maria = smooth(0.5, 0.62, fbm(x * 2 + 9, y * 2, z * 2, 3));
+    var v = 150 + (n - 0.5) * 90 - maria * 42;
+    var rg = 1 - Math.abs(fbm(x * 12 + 4, y * 12, z * 12, 3) * 2 - 1);
+    v -= smooth(0.84, 0.96, rg) * 22;
+    o[0] = v; o[1] = v; o[2] = v * 0.97;
+  }
+  function ringCanvas() {
+    var w = 512, h = 4, c = document.createElement('canvas'); c.width = w; c.height = h;
+    var ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
+    for (var i = 0; i < w; i++) {
+      var t = i / (w - 1), a;
+      if (t < 0.08) a = 0; else if (t < 0.28) a = 0.28; else if (t < 0.6) a = 0.92;
+      else if (t < 0.65) a = 0.07; else if (t < 0.94) a = 0.66; else a = 0;
+      a *= 0.65 + 0.5 * noise3(t * 70, 3.3, 1.1);
+      a *= smooth(0, 0.03, t - 0.08 < 0 ? 0 : 1) * (1 - smooth(0.92, 0.94, t)) + 0.0001;
+      var k = 0.82 + 0.3 * noise3(t * 40, 1.7, 9.1);
+      for (var j = 0; j < h; j++) {
+        var p = (j * w + i) * 4;
+        d[p] = 218 * k; d[p + 1] = 196 * k; d[p + 2] = 160 * k; d[p + 3] = clamp(a, 0, 1) * 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  /* ---------- Sky: glow, galaxies, nebulae ---------- */
+  function radialTex(stops, size) {
+    var c = document.createElement('canvas'); c.width = c.height = size;
+    var g = c.getContext('2d'), gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    stops.forEach(function (s) { gr.addColorStop(s[0], s[1]); });
+    g.fillStyle = gr; g.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(c);
+  }
+  function galaxyTex(h1, h2, arms, squash, rot) {
+    var s = 512, c = document.createElement('canvas'); c.width = c.height = s;
+    var g = c.getContext('2d');
+    g.translate(s / 2, s / 2); g.rotate(rot); g.scale(1, squash);
+    g.globalCompositeOperation = 'lighter';
+    var core = g.createRadialGradient(0, 0, 0, 0, 0, s * 0.3);
+    core.addColorStop(0, 'hsla(' + h1 + ',90%,92%,1)');
+    core.addColorStop(0.18, 'hsla(' + h1 + ',90%,72%,.65)');
+    core.addColorStop(1, 'hsla(' + h1 + ',90%,50%,0)');
+    g.fillStyle = core; g.beginPath(); g.arc(0, 0, s * 0.3, 0, 7); g.fill();
+    var i, arm, t, ang, r, x, y, hue;
+    for (i = 0; i < 260; i++) {           // soft dust lanes
+      arm = i % arms; t = Math.pow(Math.random(), 0.8);
+      ang = t * 4.4 + arm * 6.2832 / arms + (Math.random() - 0.5) * 0.35; r = 14 + t * s * 0.4;
+      x = r * Math.cos(ang); y = r * Math.sin(ang);
+      var rad = 12 + Math.random() * 30, gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      hue = lerp(h1, h2, t);
+      gr.addColorStop(0, 'hsla(' + hue + ',80%,62%,.07)'); gr.addColorStop(1, 'hsla(' + hue + ',80%,50%,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+    }
+    for (i = 0; i < 5200; i++) {          // stars along arms
+      arm = i % arms; t = Math.pow(Math.random(), 0.7);
+      ang = t * 4.4 + arm * 6.2832 / arms + (Math.random() - 0.5) * (0.5 - t * 0.25); r = 10 + t * s * 0.42;
+      x = r * Math.cos(ang) + (Math.random() - 0.5) * 8; y = r * Math.sin(ang) + (Math.random() - 0.5) * 8;
+      hue = lerp(h1, h2, t);
+      g.fillStyle = 'hsla(' + hue + ',85%,' + (68 + Math.random() * 25) + '%,' + (0.25 + Math.random() * 0.6) + ')';
+      var sz = Math.random() < 0.06 ? 2.4 : 1.2;
+      g.fillRect(x, y, sz, sz);
+    }
+    return new THREE.CanvasTexture(c);
+  }
+  function nebulaTex(r, gc, b, seed) {
+    var s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+    var ctx = c.getContext('2d'), img = ctx.createImageData(s, s), d = img.data;
+    for (var j = 0; j < s; j++) for (var i = 0; i < s; i++) {
+      var dx = (i / s - 0.5) * 2, dy = (j / s - 0.5) * 2, dist = Math.sqrt(dx * dx + dy * dy);
+      var fall = smooth(1, 0.12, dist);
+      var n = fbm(i / s * 3.4 + seed, j / s * 3.4, seed * 0.7, 5);
+      var a = smooth(0.38, 0.8, n) * fall, k = 0.6 + 0.9 * n, p = (j * s + i) * 4;
+      d[p] = r * k; d[p + 1] = gc * k; d[p + 2] = b * k; d[p + 3] = a * 150;
+    }
+    ctx.putImageData(img, 0, 0);
+    return new THREE.CanvasTexture(c);
+  }
+
+  /* =====================================================
+     3D SCENE
+     ===================================================== */
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  } catch (err) {
+    $('loaderText').textContent = 'WebGL is not available in this browser, so the 3D view cannot start.';
+    document.querySelector('#loader .orbit').style.display = 'none';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x01030a, 1);
+  $('stage').appendChild(renderer.domElement);
+  var dom = renderer.domElement;
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 6000);
+  scene.add(camera);
+
+  var ambient = new THREE.AmbientLight(0x8fa6d8, 0.26);
+  scene.add(ambient);
+  var sunLight = new THREE.PointLight(0xffffff, 1.45);
+  scene.add(sunLight);
+  var fill = new THREE.DirectionalLight(0xcfe0ff, 0.12);   // follows camera so focused bodies stay readable
+  fill.position.set(0, 0, 1);
+  camera.add(fill); camera.add(fill.target);
+  fill.target.position.set(0, 0, -1);
+
+  var labelsEl = $('labels');
+  var bodies = [], byName = {}, planets = [];
+
+  function registerBody(name, holder, radius, info, orbit) {
+    var label = document.createElement('div');
+    label.className = 'label'; label.textContent = name; labelsEl.appendChild(label);
+    var b = { name: name, holder: holder, radius: radius, label: label, info: info, orbit: orbit || 0 };
+    bodies.push(b); byName[name] = b;
+    return b;
+  }
+
+  /* ---------- Sky (stars, galaxies, nebulae) ---------- */
+  var sky = new THREE.Group();
+  scene.add(sky);
+
+  function addStars(count, size, radius) {
+    var pos = new Float32Array(count * 3), col = new Float32Array(count * 3), c = new THREE.Color();
+    for (var i = 0; i < count; i++) {
+      var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u), r = radius * (0.9 + Math.random() * 0.2);
+      pos[i * 3] = r * s * Math.cos(th); pos[i * 3 + 1] = r * u; pos[i * 3 + 2] = r * s * Math.sin(th);
+      var k = Math.random();
+      if (k < 0.55) c.setHSL(0.6, 0.15, 0.82 + Math.random() * 0.18);
+      else if (k < 0.8) c.setHSL(0.58, 0.7, 0.78);
+      else if (k < 0.93) c.setHSL(0.12, 0.7, 0.8);
+      else c.setHSL(0.02, 0.75, 0.74);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    var pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false }));
+    sky.add(pts);
+    return pts;
+  }
+
+  /* ---------- Orbit helper ---------- */
+  function circleLine(radius, color, opacity) {
+    var pts = [];
+    for (var i = 0; i < 256; i++) { var a = (i / 256) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius)); }
+    var line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity, depthWrite: false }));
+    return line;
+  }
+
+  var sunMesh, sunGlow1, sunGlow2, belt, clouds, moonPivot, earthMesh, orbitLines = new THREE.Group();
+
+  function buildWorld() {
+    /* Sky */
+    addStars(2600, 1.3, 2300);
+    addStars(1100, 2.0, 2200);
+    addStars(160, 3.2, 2100);
+
+    var gSet = [
+      [210, 280, 3, 0.55, 0.3], [320, 350, 2, 0.8, 1.2], [38, 300, 4, 0.5, 2.1],
+      [45, 20, 3, 0.7, 0.7], [270, 330, 2, 0.45, 2.8], [195, 250, 3, 0.9, 0.1], [300, 20, 4, 0.6, 1.7]
+    ];
+    gSet.forEach(function (gd, i) {
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTex(gd[0], gd[1], gd[2], gd[3], gd[4]), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95 }));
+      var u = (i / gSet.length) * 2 - 1 + (Math.random() - 0.5) * 0.25, th = i * 2.4 + Math.random();
+      u = clamp(u, -0.92, 0.92);
+      var s = Math.sqrt(1 - u * u), R = 1800, sc = 330 + Math.random() * 260;
+      sp.position.set(R * s * Math.cos(th), R * u, R * s * Math.sin(th));
+      sp.scale.set(sc, sc, 1);
+      sp.userData.spin = (Math.random() < 0.5 ? -1 : 1) * (0.004 + Math.random() * 0.006);
+      sky.add(sp);
+    });
+    var nSet = [[150, 70, 210], [50, 170, 210], [225, 70, 150], [70, 100, 240], [210, 90, 120], [60, 190, 170]];
+    nSet.forEach(function (nd, i) {
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebulaTex(nd[0], nd[1], nd[2], i * 7.3 + 1.1), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 }));
+      var u = clamp(Math.sin(i * 2.1) * 0.8, -0.85, 0.85), th = i * 1.1 + 0.5, s = Math.sqrt(1 - u * u), R = 2000, sc = 1000 + (i % 3) * 260;
+      sp.position.set(R * s * Math.cos(th), R * u, R * s * Math.sin(th));
+      sp.scale.set(sc, sc, 1);
+      sp.userData.spin = (i % 2 ? 1 : -1) * 0.003;
+      sky.add(sp);
+    });
+
+    /* Sun - big, in the middle */
+    var SUN_R = 20;
+    sunMesh = new THREE.Mesh(new THREE.SphereGeometry(SUN_R, 72, 56), new THREE.MeshBasicMaterial({ map: tex(makeSphereCanvas(512, 256, sunFn)) }));
+    scene.add(sunMesh);
+    sunGlow1 = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,236,170,1)'], [0.2, 'rgba(255,170,60,.62)'], [0.5, 'rgba(255,100,10,.16)'], [1, 'rgba(255,60,0,0)']], 256), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    sunGlow1.scale.set(SUN_R * 4.2, SUN_R * 4.2, 1);
+    scene.add(sunGlow1);
+    sunGlow2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,190,100,.32)'], [0.4, 'rgba(255,120,40,.1)'], [1, 'rgba(255,80,0,0)']], 256), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    sunGlow2.scale.set(SUN_R * 9, SUN_R * 9, 1);
+    scene.add(sunGlow2);
+    registerBody('Sun', sunMesh, SUN_R, { kicker: 'Star', rows: [['Type', 'G-type star'], ['Diameter', '1,391,000 km'], ['Surface', '5,500 \u00B0C'], ['Share of system mass', '99.8%']] }, 0);
+
+    /* Planets */
+    var D = [
+      { n: 'Mercury', r: 1.3, d: 32, f: rockFn(112, 110, true), tilt: 0.03, spin: 0.15, a0: 0.6, rows: [['Diameter', '4,879 km'], ['Year', '88 days'], ['Day', '59 Earth days']] },
+      { n: 'Venus', r: 2.5, d: 42, f: venusFn, tilt: 3.1, spin: 0.08, a0: 2.2, rows: [['Diameter', '12,104 km'], ['Year', '225 days'], ['Day', '243 Earth days']] },
+      { n: 'Earth', r: 2.6, d: 54, tilt: 0.41, spin: 0.3, a0: 4.1, earth: true, rows: [['Diameter', '12,742 km'], ['Year', '365.25 days'], ['Day', '23 h 56 min'], ['Moons', '1']] },
+      { n: 'Mars', r: 1.8, d: 66, f: marsFn, tilt: 0.44, spin: 0.29, a0: 1.4, rows: [['Diameter', '6,779 km'], ['Year', '687 days'], ['Day', '24 h 37 min'], ['Moons', '2']] },
+      { n: 'Jupiter', r: 7, d: 94, f: jupiterFn, tilt: 0.05, spin: 0.6, a0: 5.3, rows: [['Diameter', '139,820 km'], ['Year', '11.9 years'], ['Day', '9 h 56 min'], ['Moons', '95']] },
+      { n: 'Saturn', r: 6, d: 118, f: saturnFn, tilt: 0.47, spin: 0.55, a0: 3.0, ring: true, rows: [['Diameter', '116,460 km'], ['Year', '29.5 years'], ['Day', '10 h 33 min'], ['Moons', '146']] },
+      { n: 'Uranus', r: 4, d: 140, f: iceFn(150, 214, 224, 0.12), tilt: 1.7, spin: 0.35, a0: 0.2, rows: [['Diameter', '50,724 km'], ['Year', '84 years'], ['Day', '17 h 14 min'], ['Moons', '28']] },
+      { n: 'Neptune', r: 3.9, d: 160, f: iceFn(52, 92, 205, 0.3), tilt: 0.5, spin: 0.4, a0: 4.7, rows: [['Diameter', '49,244 km'], ['Year', '165 years'], ['Day', '16 h 6 min'], ['Moons', '16']] }
+    ];
+    var K = 9.5;
+
+    scene.add(orbitLines);
+
+    D.forEach(function (def) {
+      var pivot = new THREE.Object3D(); pivot.rotation.y = def.a0; scene.add(pivot);
+      var holder = new THREE.Object3D(); holder.position.x = def.d; pivot.add(holder);
+      var tilt = new THREE.Object3D(); tilt.rotation.z = def.tilt; holder.add(tilt);
+      var mat, mesh;
+      if (def.earth) {
+        earthIdx = 0;
+        var ec = makeSphereCanvas(EW, EH, earthFn);
+        var sc = document.createElement('canvas'); sc.width = EW; sc.height = EH;
+        var sctx = sc.getContext('2d'), simg = sctx.createImageData(EW, EH);
+        for (var q = 0; q < EW * EH; q++) { simg.data[q * 4] = simg.data[q * 4 + 1] = simg.data[q * 4 + 2] = earthSpec[q]; simg.data[q * 4 + 3] = 255; }
+        sctx.putImageData(simg, 0, 0);
+        mat = new THREE.MeshPhongMaterial({ map: tex(ec), specularMap: tex(sc), specular: new THREE.Color(0x56697c), shininess: 24 });
+      } else {
+        mat = new THREE.MeshStandardMaterial({ map: tex(makeSphereCanvas(512, 256, def.f)), roughness: 1, metalness: 0 });
+      }
+      mesh = new THREE.Mesh(new THREE.SphereGeometry(def.r, 72, 56), mat);
+      tilt.add(mesh);
+
+      if (def.ring) {
+        var inner = def.r * 1.25, outer = def.r * 2.3;
+        var rg = new THREE.RingGeometry(inner, outer, 160, 1), p = rg.attributes.position, uv = rg.attributes.uv, v = new THREE.Vector3();
+        for (var i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); uv.setXY(i, (v.length() - inner) / (outer - inner), 0.5); }
+        var ring = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: tex(ringCanvas()), side: THREE.DoubleSide, transparent: true, roughness: 1, depthWrite: false }));
+        ring.rotation.x = Math.PI / 2;
+        tilt.add(ring);
+      }
+
+      var orbit = K / Math.pow(def.d, 1.5);
+      var body = registerBody(def.n, holder, def.r, { kicker: 'Planet', rows: def.rows }, orbit);
+      planets.push({ pivot: pivot, mesh: mesh, orbit: orbit, spin: def.spin });
+      orbitLines.add(circleLine(def.d, 0x7fb0ff, 0.2));
+
+      if (def.earth) {
+        earthMesh = mesh;
+        // clouds
+        var cc = makeSphereCanvas(512, 256, cloudFn);
+        clouds = new THREE.Mesh(new THREE.SphereGeometry(def.r * 1.012, 64, 48), new THREE.MeshPhongMaterial({ map: tex(cc), transparent: true, depthWrite: false, shininess: 0 }));
+        tilt.add(clouds);
+        // atmosphere glow
+        var atmo = new THREE.Mesh(new THREE.SphereGeometry(def.r * 1.2, 64, 48), new THREE.ShaderMaterial({
+          vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+          fragmentShader: 'varying vec3 vN; void main(){ float i = pow(max(0.0, 0.64 - dot(vN, vec3(0.0,0.0,1.0))), 3.2); gl_FragColor = vec4(0.28,0.58,1.0,1.0) * clamp(i,0.0,1.0); }',
+          blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
+        }));
+        holder.add(atmo);
+        // moon
+        var moonTilt = new THREE.Object3D(); moonTilt.rotation.z = 0.09; holder.add(moonTilt);
+        moonPivot = new THREE.Object3D(); moonTilt.add(moonPivot);
+        var moon = new THREE.Mesh(new THREE.SphereGeometry(0.7, 48, 36), new THREE.MeshStandardMaterial({ map: tex(makeSphereCanvas(256, 128, moonFn)), roughness: 1 }));
+        moon.position.x = 7.2; moonPivot.add(moon);
+        moonTilt.add(circleLine(7.2, 0xaabbd8, 0.14));
+      }
+    });
+
+    /* Asteroid belt */
+    var N = 3200, bp = new Float32Array(N * 3);
+    for (var i = 0; i < N; i++) {
+      var a = Math.random() * Math.PI * 2, r = 74 + Math.random() * 11;
+      bp[i * 3] = Math.cos(a) * r; bp[i * 3 + 1] = (Math.random() - 0.5) * 1.6; bp[i * 3 + 2] = Math.sin(a) * r;
+    }
+    var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(bp, 3));
+    belt = new THREE.Points(bg, new THREE.PointsMaterial({ color: 0xb9a68f, size: 1.5, sizeAttenuation: false, transparent: true, opacity: 0.8, depthWrite: false }));
+    scene.add(belt);
+  }
+
+  /* =====================================================
+     CAMERA CONTROL  (drag = rotate, wheel / pinch / buttons = zoom)
+     ===================================================== */
+  var cam = {
+    yaw: 0.6, pitch: 0.42, dist: 220, distT: 220,
+    min: 45, max: 1200, def: 220,
+    cur: new THREE.Vector3(), offset: new THREE.Vector3(),
+    focus: null, goal: null, vyaw: 0, vpitch: 0
+  };
+  var tmpV = new THREE.Vector3(), tmpU = new THREE.Vector3(), tmpP = new THREE.Vector3();
+  var dragging = false, pointers = {}, pointerCount = 0, lastPinch = 0, lastMoveT = 0;
+  var paused = false, speeds = [1, 2, 4, 8], speedIdx = 0, labelsOn = true;
+
+  function solarDefault() {
+    var a = window.innerWidth / window.innerHeight;
+    return clamp(335 / a, 195, 1100);
+  }
+  function focusPos(out) {
+    if (cam.focus) cam.focus.holder.getWorldPosition(out); else out.set(0, 0, 0);
+    return out;
+  }
+  function clampZoom() { cam.distT = clamp(cam.distT, cam.min, cam.max); }
+  function zoomBy(f) { cam.distT *= f; clampZoom(); }
+
+  var chipEls = [];
+  function buildChips() {
+    var host = $('chips'); host.innerHTML = '';
+    var list = [{ name: 'Solar System', body: null }].concat(bodies.map(function (b) { return { name: b.name, body: b }; }));
+    list.forEach(function (it) {
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'chip'; btn.textContent = it.name; btn.setAttribute('role', 'tab');
+      btn.addEventListener('click', function () { setFocus(it.body); });
+      host.appendChild(btn); chipEls.push({ el: btn, body: it.body });
+    });
+  }
+  function updateChips() {
+    chipEls.forEach(function (c) {
+      var on = c.body === cam.focus;
+      c.el.classList.toggle('active', on);
+      c.el.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) {
+        var host = $('chips');
+        host.scrollTo({ left: c.el.offsetLeft - (host.clientWidth - c.el.offsetWidth) / 2, behavior: 'smooth' });
+      }
+    });
+  }
+  function updateInfo() {
+    var b = cam.focus, rows;
+    if (!b) {
+      $('infoKicker').textContent = 'Overview';
+      $('infoName').textContent = 'Solar System';
+      rows = [['Star', '1 (the Sun)'], ['Planets', '8'], ['Asteroid belt', 'Mars to Jupiter'], ['Tip', 'Tap a name below']];
+    } else {
+      $('infoKicker').textContent = b.info.kicker;
+      $('infoName').textContent = b.name;
+      rows = b.info.rows;
+    }
+    $('infoRows').innerHTML = rows.map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+  }
+
+  function setFocus(b) {
+    var prev = cam.cur.clone();
+    cam.focus = b;
+    focusPos(tmpV);
+    cam.offset.copy(prev).sub(tmpV);           // keep current view point, then glide to the new one
+    if (!b) {
+      cam.min = 45; cam.max = 1200; cam.def = solarDefault();
+      cam.goal = { yaw: null, pitch: 0.42 };
+    } else if (b.name === 'Sun') {
+      cam.min = 28; cam.max = 500; cam.def = b.radius * 3.4;
+      cam.goal = { yaw: null, pitch: 0.18 };
+    } else {
+      cam.min = b.radius * 1.9; cam.max = b.radius * 30; cam.def = b.radius * 3.8;
+      // put the camera so the Sun sits in the background on one side and the planet is well lit
+      var ys = Math.atan2(-tmpV.x, -tmpV.z);
+      cam.goal = { yaw: ys + Math.PI + 0.66, pitch: 0.2 };
+    }
+    cam.distT = cam.def;
+    cam.vyaw = cam.vpitch = 0;
+    updateChips(); updateInfo();
+  }
+
+  /* pointer input */
+  dom.addEventListener('pointerdown', function (e) {
+    try { dom.setPointerCapture(e.pointerId); } catch (_) {}
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    pointerCount = Object.keys(pointers).length;
+    dragging = true; cam.goal = null; cam.vyaw = cam.vpitch = 0; lastMoveT = performance.now();
+    if (pointerCount === 2) { lastPinch = pinchDist(); }
+  });
+  dom.addEventListener('pointermove', function (e) {
+    var p = pointers[e.pointerId]; if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (pointerCount === 1) {
+      var now = performance.now(), dtm = Math.max(0.001, (now - lastMoveT) / 1000); lastMoveT = now;
+      var k = 0.0055;
+      cam.yaw -= dx * k; cam.pitch = clamp(cam.pitch + dy * k, -1.45, 1.45);
+      cam.vyaw = clamp(-dx * k / dtm, -4, 4); cam.vpitch = clamp(dy * k / dtm, -4, 4);
+    } else if (pointerCount === 2) {
+      var d = pinchDist();
+      if (lastPinch > 0 && d > 0) { cam.distT *= lastPinch / d; clampZoom(); }
+      lastPinch = d;
+    }
+  });
+  function endPointer(e) {
+    delete pointers[e.pointerId];
+    pointerCount = Object.keys(pointers).length;
+    if (pointerCount === 0) { dragging = false; if (performance.now() - lastMoveT > 90) cam.vyaw = cam.vpitch = 0; }
+    if (pointerCount < 2) lastPinch = 0;
+  }
+  dom.addEventListener('pointerup', endPointer);
+  dom.addEventListener('pointercancel', endPointer);
+  function pinchDist() {
+    var ids = Object.keys(pointers); if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  dom.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0015));
+  }, { passive: false });
+
+  $('zoomIn').addEventListener('click', function () { zoomBy(0.78); });
+  $('zoomOut').addEventListener('click', function () { zoomBy(1.28); });
+  $('speedBtn').addEventListener('click', function () {
+    speedIdx = (speedIdx + 1) % speeds.length;
+    this.innerHTML = speeds[speedIdx] + '&times;';
+  });
+  $('pauseBtn').addEventListener('click', function () {
+    paused = !paused; this.textContent = paused ? 'Play' : 'Pause';
+  });
+  $('labelBtn').addEventListener('click', function () {
+    labelsOn = !labelsOn; this.setAttribute('aria-pressed', labelsOn ? 'true' : 'false');
+  });
+  window.addEventListener('keydown', function (e) {
+    if (!app.loggedIn || /input|textarea/i.test((e.target && e.target.tagName) || '')) return;
+    if (e.key === '+' || e.key === '=') zoomBy(0.8);
+    else if (e.key === '-' || e.key === '_') zoomBy(1.25);
+  });
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (!cam.focus) { var wasDefault = Math.abs(cam.distT - cam.def) < 1; cam.def = solarDefault(); if (wasDefault) cam.distT = cam.def; }
+  });
+
+  app.onLogin = function () { setFocus(byName['Earth']); };
+  app.onLogout = function () { setFocus(null); };
+
+  /* =====================================================
+     ANIMATION LOOP
+     ===================================================== */
+  var clock = new THREE.Clock(), elapsed = 0, lastZoomTxt = '';
+  var upV = new THREE.Vector3();
+
+  function frame() {
+    requestAnimationFrame(frame);
+    var dt = Math.min(clock.getDelta(), 0.05);
+    elapsed += dt;
+    var ts = paused ? 0 : speeds[speedIdx];
+
+    /* simulation */
+    var i;
+    for (i = 0; i < planets.length; i++) {
+      var pl = planets[i];
+      pl.pivot.rotation.y += pl.orbit * dt * ts;
+      pl.mesh.rotation.y += pl.spin * dt * ts;
+    }
+    if (clouds) clouds.rotation.y += 0.36 * dt * ts;
+    if (moonPivot) moonPivot.rotation.y += 0.55 * dt * ts;
+    sunMesh.rotation.y += 0.03 * dt * ts;
+    belt.rotation.y += 0.012 * dt * ts;
+    var pulse = 1 + Math.sin(elapsed * 1.3) * 0.015;
+    sunGlow1.scale.setScalar(20 * 4.2 * pulse);
+    sunGlow2.scale.setScalar(20 * 9 * (1 + Math.sin(elapsed * 0.7 + 1) * 0.02));
+
+    /* slow drift of the sky so the background is always alive */
+    sky.rotation.y += 0.004 * dt;
+    sky.rotation.x = Math.sin(elapsed * 0.02) * 0.05;
+    for (i = 0; i < sky.children.length; i++) {
+      var ch = sky.children[i];
+      if (ch.isSprite && ch.userData.spin) ch.material.rotation += ch.userData.spin * dt;
+    }
+
+    /* camera follows planet's orbit so the Sun stays in the backdrop */
+    if (cam.focus && cam.focus.orbit) {
+      var th = cam.focus.orbit * dt * ts;
+      cam.yaw += th;
+      if (cam.goal && cam.goal.yaw !== null) cam.goal.yaw += th;
+    }
+    if (cam.goal) {
+      var kk = 1 - Math.exp(-dt * 2.6), dp = cam.goal.pitch - cam.pitch, dyw = 0;
+      if (cam.goal.yaw !== null) { dyw = wrapAngle(cam.goal.yaw - cam.yaw); cam.yaw += dyw * kk; }
+      cam.pitch += dp * kk;
+      if (Math.abs(dp) < 0.004 && Math.abs(dyw) < 0.004) cam.goal = null;
+    } else if (!dragging) {
+      cam.yaw += cam.vyaw * dt; cam.pitch = clamp(cam.pitch + cam.vpitch * dt, -1.45, 1.45);
+      var decay = Math.exp(-dt * 3.5); cam.vyaw *= decay; cam.vpitch *= decay;
+      if (!cam.focus && Math.abs(cam.vyaw) < 0.05) cam.yaw += (app.loggedIn ? 0.035 : 0.055) * dt;
+    }
+
+    focusPos(tmpP);
+    cam.offset.multiplyScalar(Math.exp(-dt * 3.2));
+    cam.cur.copy(tmpP).add(cam.offset);
+    cam.dist = Math.exp(lerp(Math.log(cam.dist), Math.log(cam.distT), 1 - Math.exp(-dt * 5)));
+
+    var pitch = cam.pitch + (app.loggedIn ? 0 : Math.sin(elapsed * 0.14) * 0.06);
+    var cp = Math.cos(pitch);
+    camera.position.set(
+      cam.cur.x + cam.dist * cp * Math.sin(cam.yaw),
+      cam.cur.y + cam.dist * Math.sin(pitch),
+      cam.cur.z + cam.dist * cp * Math.cos(cam.yaw)
+    );
+    camera.lookAt(cam.cur);
+    camera.updateMatrixWorld();
+    sky.position.copy(camera.position);
+
+    /* lighting: stronger camera fill when a single body is the subject */
+    var fillT = cam.focus && cam.focus.name !== 'Sun' ? 0.7 : 0.12;
+    fill.intensity += (fillT - fill.intensity) * (1 - Math.exp(-dt * 3));
+
+    /* zoom readout */
+    var z = Math.round((cam.def / cam.dist) * 100) + '%';
+    if (z !== lastZoomTxt) { $('zoomRead').textContent = z; lastZoomTxt = z; }
+
+    /* labels */
+    var W = window.innerWidth, H = window.innerHeight;
+    upV.setFromMatrixColumn(camera.matrixWorld, 1);
+    for (i = 0; i < bodies.length; i++) {
+      var b = bodies[i], show = app.loggedIn && labelsOn && (!cam.focus || cam.focus === b);
+      if (!show) { b.label.style.visibility = 'hidden'; continue; }
+      b.holder.getWorldPosition(tmpU);
+      tmpU.addScaledVector(upV, b.radius * 1.3 + 1.2);
+      tmpU.project(camera);
+      if (tmpU.z > 1 || Math.abs(tmpU.x) > 1.2 || Math.abs(tmpU.y) > 1.2) { b.label.style.visibility = 'hidden'; continue; }
+      b.label.style.visibility = 'visible';
+      b.label.style.transform = 'translate(' + ((tmpU.x * 0.5 + 0.5) * W).toFixed(1) + 'px,' + ((-tmpU.y * 0.5 + 0.5) * H).toFixed(1) + 'px) translate(-50%,-100%)';
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  /* =====================================================
+     START (textures are generated procedurally, so show a loader first)
+     ===================================================== */
+  $('whoami').textContent = 'admin';
+  requestAnimationFrame(function () {
+    setTimeout(function () {
+      try {
+        buildWorld();
+        buildChips();
+        cam.def = cam.dist = cam.distT = solarDefault();
+        setFocus(null);
+        cam.goal = null;
+        cam.offset.set(0, 0, 0);
+        frame();
+        $('loader').classList.add('hidden');
+        setTimeout(function () { var l = $('loader'); if (l && l.parentNode) l.parentNode.removeChild(l); }, 1200);
+      } catch (err) {
+        console.error(err);
+        $('loaderText').textContent = 'Something went wrong while building the scene: ' + err.message;
+      }
+    }, 60);
+  });
+})();
+</script>
+</body>
+</html>
